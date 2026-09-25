@@ -625,6 +625,13 @@ structure Environment where
   -/
   isExporting : Bool := false
   /--
+  Mirrors `Lean.Core.Context.isRecordingDeps` for pure extension reads, which cannot see the
+  context: while set, a generation-tracked extension must be read with `(genRecorded := true)`, by
+  which the caller asserts that it recorded the generation (`Lean.recordExtGenAccess`), and any other
+  extension must have `EnvExtension.logWrites`; other reads panic.
+  -/
+  isRecordingDeps : Bool := false
+  /--
   Log of declaration-keyed state changes some recording computation could have observed
   (`logDeclChange`): a write about a declaration is appended when the declaration was added before
   the latest recording started (`recordingConstGen`), as writes about younger declarations cannot
@@ -750,6 +757,10 @@ changes to the declarations they could have observed logged.
 -/
 def raiseRecordingConstGen (env : Environment) (gen : Nat) : Environment :=
   if gen ≤ env.recordingConstGen then env else { env with recordingConstGen := gen }
+
+/-- Updates `Environment.isRecordingDeps`. -/
+def setRecordingDeps (env : Environment) (recording : Bool) : Environment :=
+  if env.isRecordingDeps == recording then env else { env with isRecordingDeps := recording }
 
 /-- Consistently updates synchronous and (private) asynchronous parts of the environment without blocking. -/
 private def modifyCheckedAsync (env : Environment) (f : Kernel.Environment → Kernel.Environment) : Environment :=
@@ -1550,9 +1561,15 @@ private unsafe def modifyStateImpl {σ : Type} (ext : EnvExtension σ) (exts : A
     have : Inhabited (Array EnvExtensionState) := ⟨exts⟩
     panic! invalidExtMsg
 
-private unsafe def getStateImpl {σ} [Inhabited σ] (ext : EnvExtension σ) (exts : Array EnvExtensionState) : σ :=
+private unsafe def getStateImpl {σ} [Inhabited σ] (ext : EnvExtension σ) (exts : Array EnvExtensionState)
+    (tripwire : Bool := false) : σ :=
   if h : ext.idx < exts.size then
-    unsafeCast exts[ext.idx]
+    if tripwire then
+      panic! s!"environment extension `{ext.name}` (index {ext.idx}) read while recording \
+        dependencies, but it neither logs its writes (`logWrites`) nor is generation-tracked and read \
+        with `(genRecorded := true)` (see `Environment.isRecordingDeps`)"
+    else
+      unsafeCast exts[ext.idx]
   else
     panic! invalidExtMsg
 
@@ -1662,10 +1679,12 @@ different environment branches are reconciled.
 
 -- `unsafe` fails to infer `Nonempty` here
 private unsafe def getStateUnsafe {σ : Type} [Inhabited σ] (ext : EnvExtension σ)
-    (env : Environment) (asyncMode := ext.asyncMode) (asyncDecl : Name := .anonymous) : σ := Id.run do
+    (env : Environment) (asyncMode := ext.asyncMode) (asyncDecl : Name := .anonymous)
+    (genRecorded := false) : σ := Id.run do
+  let tripwire := env.isRecordingDeps && (if ext.isGenTracked then !genRecorded else !ext.logWrites)
   -- safety: `ext`'s constructor is private, so we can assume the entry at `ext.idx` is of type `σ`
   match asyncMode with
-  | .sync => ext.getStateImpl env.checked.get.extensions
+  | .sync => ext.getStateImpl env.checked.get.extensions tripwire
   | .async branch =>
     if asyncDecl.isAnonymous then
       panic! "called on `async` extension, must set `asyncDecl` \
@@ -1674,22 +1693,22 @@ private unsafe def getStateUnsafe {σ : Type} [Inhabited σ] (ext : EnvExtension
     -- analogous structure to `findAsync?`; see there
     -- safety: `ext`'s constructor is private, so we can assume the entry at `ext.idx` is of type `σ`
     if env.base.get env |>.constants.contains asyncDecl then
-      return ext.getStateImpl env.base.private.extensions
+      return ext.getStateImpl env.base.private.extensions tripwire
 
     -- specialization of the following branch, nested async decls are rare
     if let some c := env.asyncConsts.find? asyncDecl then
       match branch with
       | .asyncEnv =>
         if let some exts := c.exts? then
-          return ext.getStateImpl exts.get
+          return ext.getStateImpl exts.get tripwire
         else
-          return ext.getStateImpl env.base.private.extensions
+          return ext.getStateImpl env.base.private.extensions tripwire
       | .mainEnv =>
         if c.isRealized then
           if let some exts := c.exts? then
-            return ext.getStateImpl exts.get
+            return ext.getStateImpl exts.get tripwire
         else
-          return ext.getStateImpl env.base.private.extensions
+          return ext.getStateImpl env.base.private.extensions tripwire
 
     if let some (c, parent?) := env.asyncConsts.findRecAndParent? asyncDecl then
       -- If `parent?` is `none`, the current branch is the parent
@@ -1703,17 +1722,17 @@ private unsafe def getStateUnsafe {σ : Type} [Inhabited σ] (ext : EnvExtension
           -- this specific case, accessing the latter will in particular not block longer than the
           -- former.
           | .mainEnv => if c.isRealized then c.exts? else parentExts?) then
-        return ext.getStateImpl exts.get
+        return ext.getStateImpl exts.get tripwire
       -- NOTE: if `exts?` is `none`, we should *not* try the following, more expensive branches that
       -- will just come to the same conclusion
     else if let some c := env.allRealizations.get.find? asyncDecl then
       if let some exts := c.exts? then
-        return ext.getStateImpl exts.get
+        return ext.getStateImpl exts.get tripwire
     -- fallback; we could enforce that `asyncDecl` and its extension state always exist but the
     -- upside of doing is unclear and it is not true in e.g. the compiler. One alternative would be
     -- to add a `getState?` that does not panic in such cases.
-    ext.getStateImpl env.base.private.extensions
-  | _         => ext.getStateImpl env.base.private.extensions
+    ext.getStateImpl env.base.private.extensions tripwire
+  | _         => ext.getStateImpl env.base.private.extensions tripwire
 
 /--
 Returns the current extension state. See `AsyncMode` for details on how modifications from
@@ -1721,10 +1740,14 @@ different environment branches are reconciled.
 
 Overriding the extension's default `AsyncMode` is usually not recommended and should be considered
 only for important optimizations.
+
+`genRecorded` asserts that the caller recorded the extension's generation in the current recording
+computation (`Lean.recordExtGenAccess`), which reading a generation-tracked extension while
+`Environment.isRecordingDeps` is set requires.
 -/
 @[implemented_by getStateUnsafe]
 opaque getState {σ : Type} [Inhabited σ] (ext : EnvExtension σ) (env : Environment)
-  (asyncMode := ext.asyncMode) (asyncDecl : Name := .anonymous) : σ
+  (asyncMode := ext.asyncMode) (asyncDecl : Name := .anonymous) (genRecorded := false) : σ
 
 /--
 Generation of the generation-tracked extension with index `genIdx` (`EnvExtension.genIdx?`) on the
@@ -1755,7 +1778,7 @@ end EnvExtension
 def registerEnvExtension {σ : Type} (mkInitial : IO σ)
     (replay? : Option (ReplayFn σ) := none)
     (asyncMode : EnvExtension.AsyncMode := .mainOnly)
-    (name : Name := .anonymous)
+    (name : Name := by exact decl_name%)
     (trackGen : Bool := false)
     (logWrites : Bool := false) : IO (EnvExtension σ) := do
   unless (← initializing) do
@@ -1941,10 +1964,15 @@ def getModuleIREntries {α β σ : Type} [Inhabited σ] (ext : PersistentEnvExte
     let state   := ext.addEntryFn s.state b;
     { s with state := state }
 
-/-- Get the current state of the given extension in the given environment. -/
+/--
+Get the current state of the given extension in the given environment. For `genRecorded`, see
+`EnvExtension.getState`.
+-/
 def getState {α β σ : Type} [Inhabited σ] (ext : PersistentEnvExtension α β σ) (env : Environment)
-    (asyncMode := ext.toEnvExtension.asyncMode) (asyncDecl : Name := .anonymous) : σ :=
-  (ext.toEnvExtension.getState (asyncMode := asyncMode) (asyncDecl := asyncDecl) env).state
+    (asyncMode := ext.toEnvExtension.asyncMode) (asyncDecl : Name := .anonymous)
+    (genRecorded := false) : σ :=
+  (ext.toEnvExtension.getState (asyncMode := asyncMode) (asyncDecl := asyncDecl)
+    (genRecorded := genRecorded) env).state
 
 /-- Set the current state of the given extension in the given environment. -/
 @[inline] def setState {α β σ : Type} (ext : PersistentEnvExtension α β σ) (env : Environment)
