@@ -2424,6 +2424,19 @@ macro (name := mvcgenMacro) (priority:=low) "mvcgen" : tactic =>
   Macro.throwError "to use `mvcgen`, please include `import Std.Tactic.Do`"
 
 /--
+`extract_vc` extracts the current goal as a top-level theorem and offers a code action that
+inserts `theorem <decl>.<goal> : … := by sorry` above the enclosing declaration and replaces
+this tactic with `exact <theorem>` (arguments included, plus `rename_i` if any hypothesis is
+inaccessible).
+
+The inserted statement is checked to re-elaborate to the original goal. If that check fails, the
+tactic reports an error and no code action is offered. Goals that still contain metavariables are
+rejected; supply invariants first. SPred goals (`P ⊢ₛ Q`) are accepted but print poorly — run
+`mleave` first.
+-/
+syntax (name := extractVC) "extract_vc" : tactic
+
+/--
 `vcgen` will break down a Hoare triple proof goal like `⦃P⦄ prog ⦃Q⦄` into verification conditions,
 provided that all functions used in `prog` have specifications registered with `@[spec]`.
 

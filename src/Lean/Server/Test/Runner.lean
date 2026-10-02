@@ -534,6 +534,60 @@ def processCodeAction : RunnerM Unit := do
     IO.eprintln s!"Resolution of {x.title}:"
     logResponse "codeAction/resolve" x (logParam := false)
 
+/--
+`codeActionApply: <title substring>` applies the workspace edit of a code action at the cursor.
+This is the command-line equivalent of clicking the lightbulb or a suggestion's `[apply]` button
+(`Try this`, library-suggestion tactics, `extract_vc`).
+
+With no argument, the preferred action is used, or the first action. Follow with `sync` and
+`collectDiagnostics` or `goals`. Edits are sent from the end of the file so sequential `didChange`
+application keeps ranges valid.
+-/
+def processCodeActionApply : RunnerM Unit := do
+  let s ← get
+  if !s.synced then
+    throw <| IO.userError "cannot use 'codeActionApply' without syncing first"
+  let params : CodeActionParams := {
+    textDocument := { uri := s.uri }
+    range := ⟨s.pos, s.pos⟩
+  }
+  let actions ← request "textDocument/codeAction" params (Array CodeAction)
+  if actions.isEmpty then
+    throw <| IO.userError "codeActionApply: no code actions"
+  let needle := s.params.trimAscii.copy
+  let candidates :=
+    if needle.isEmpty then actions
+    else actions.filter fun a => a.title.replace needle "" != a.title
+  if candidates.isEmpty then
+    throw <| IO.userError s!"codeActionApply: no action title contains {needle}"
+  let some action := candidates.find? (·.isPreferred? == some true) <|> candidates[0]?
+    | throw <| IO.userError "codeActionApply: no code actions"
+  let action ←
+    if action.edit?.isSome then pure action
+    else request "codeAction/resolve" action CodeAction
+  let some edit := action.edit?
+    | throw <| IO.userError s!"codeActionApply: {action.title} has no edit"
+  let mut edits : TextEditBatch := #[]
+  if let some changes := edit.documentChanges? then
+    for c in changes do
+      if let .edit te := c then
+        edits := edits ++ te.edits
+  if let some changes := edit.changes? then
+    for (_, es) in changes do
+      edits := edits ++ es
+  if edits.isEmpty then
+    throw <| IO.userError s!"codeActionApply: {action.title} has an empty edit"
+  -- Later ranges first: `foldDocumentChanges` applies edits sequentially.
+  edits := edits.qsort fun a b => a.range.start > b.range.start
+  let change : DidChangeTextDocumentParams := {
+    textDocument := { uri := s.uri, version? := s.versionNo }
+    contentChanges := edits.map fun e => .rangeChange e.range e.newText
+  }
+  Ipc.writeNotification ⟨"textDocument/didChange", toJson change⟩
+  advanceVersionNo
+  setDesynced
+  IO.eprintln s!"applied code action: {action.title}"
+
 def processInteractiveDiagnostics : RunnerM Unit := do
   let isExpandTraces := (← get).params == "expandTraces"
   let highlightMatchesQuery? := (← get).params.dropPrefix? "highlightMatches:"
@@ -698,6 +752,7 @@ def processDirective (_ws directive : String) (directiveTargetLineNo : Nat)
   | "sync" => processSync
   | "waitFor" => processWaitFor
   | "codeAction" => processCodeAction
+  | "codeActionApply" => processCodeActionApply
   | "interactiveDiagnostics" => processInteractiveDiagnostics
   | "goals" => processGoals
   | "termGoal" => processTermGoal
