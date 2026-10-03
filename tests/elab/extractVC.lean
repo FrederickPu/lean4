@@ -1,55 +1,59 @@
 module
 
+import Std.Tactic.Do
+
 /-!
-`extract_vc` names the extracted theorem, renames inaccessible hypotheses, lists universe
-parameters, and replaces the tactic with `exact <theorem>`.
+What `extract_vc` suggests: the theorem it extracts from the main goal, and the tactic that closes
+the goal with it.
 -/
 
-/-- exact womp.goal -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
+/-! The theorem is named after the enclosing declaration and the goal's case tag. -/
+
 theorem womp : True := by
   extract_vc
 
-/-- exact extracted.goal -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
 example : True := by
   extract_vc
 
-/-- private theorem hidden.goal -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
 private theorem hidden : True := by
   extract_vc
 
-/-- exact poly.goal α x -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
-theorem poly.{u} (α : Type u) (x : α) : x = x := by
-  extract_vc
-
-/-- rename_i n_1; exact splitNat.succ n_1 -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
-theorem splitNat (n : Nat) : n = n := by
-  cases n <;> extract_vc
-
 namespace Foo
 
-/-- exact bar.goal -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
 theorem bar : True := by
   extract_vc
 
 end Foo
 
-/-- exact opened.goal -/
-#guard_msgs (info, drop warning, whitespace := lax, substring := true) in
-open Nat in
-theorem opened : Nat.zero = 0 := by
+/-! Hypotheses become explicit arguments, before the colon. -/
+
+theorem poly.{u} (α : Type u) (x : α) : x = x := by
   extract_vc
 
-/--
-error: extract_vc: goal contains metavariables; supply invariants first
--/
-#guard_msgs (error, substring := true) in
-example : True := by
-  have : ?a := by
-    extract_vc
-  trivial
+theorem insts {α : Type} [inst : Inhabited α] (xs : List α) : xs = xs := by
+  extract_vc
+
+example (α : Type _) (x : α) : x = x := by
+  extract_vc
+
+/-! `have`s are arguments as well, whereas `let`s stay in the statement if it depends on them. -/
+
+theorem lets (n : Nat) : let m := n + 1; m = n + 1 := by
+  intro m
+  let unused := 5
+  have fact : n = n := rfl
+  extract_vc
+
+/-! Names are fully qualified, since the theorem is stated outside of `open … in`. -/
+
+open Nat in
+theorem opened : succ zero = 1 := by
+  extract_vc
+
+/-! Hypotheses that cannot be referred to are named by `expose_names`. -/
+
+theorem splitNat (n : Nat) : n = n := by
+  cases n <;> extract_vc
+
+theorem shadowed (x : Nat) (x : x = 1) : True := by
+  extract_vc

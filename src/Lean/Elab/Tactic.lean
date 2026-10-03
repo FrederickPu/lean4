@@ -61,4 +61,3 @@ public import Lean.Elab.Tactic.Do
 public import Lean.Elab.Tactic.VCGen
 public import Lean.Elab.Tactic.Decide
 public import Lean.Elab.Tactic.Cbv
-import Lean.Elab.Tactic.ExtractVC

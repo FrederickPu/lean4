@@ -399,6 +399,103 @@ syntax (name := mvcgenHint) "mvcgen?" optConfig
 
 deprecated_syntax Lean.Parser.Tactic.mvcgenHint "use `vcgen` instead" (since := "2026-08-21")
 
+/--
+`extract_vc` states the main goal as a theorem of its own and suggests replacing `extract_vc` with a
+proof of the goal by that theorem. It is meant for verification conditions, such as the goals that
+`mvcgen` leaves behind, but works on any goal that is a proposition.
+
+The suggestion is a "Try this" link in the message, which is also offered as a code action. It
+appears once the enclosing declaration has been elaborated. Applying it inserts the theorem, proved
+by `sorry`, above the enclosing declaration, and replaces `extract_vc` with `exact`:
+```
+theorem womp.goal (n : Nat) : n + 0 = n := by
+  sorry
+
+theorem womp : ∀ n : Nat, n + 0 = n := by
+  intro
+  expose_names; exact womp.goal n
+```
+Until then, `extract_vc` admits the goal.
+
+### The theorem
+
+* Its name is `<declaration>.<case tag>`, such as `mySum_correct.vc1.step`, or
+  `<declaration>.goal` for a goal without a case tag. Inside an `example`, `extracted` stands in for
+  the declaration's name. A numeric suffix avoids names that are taken.
+* Each hypothesis becomes an explicit argument, written before the colon where that prints
+  faithfully. A `let` that the goal depends on stays part of the statement instead.
+* Universe parameters of the goal, including universe metavariables, become universe parameters of
+  the theorem.
+* Names are written in full, because the theorem is stated outside of the `open` declarations of
+  the proof.
+* The statement is checked to elaborate back to the goal, unfolding only reducible definitions, so
+  that it states what the goal shows rather than something merely equivalent to it. If no printed
+  form passes this check, `extract_vc` fails rather than suggest a different statement.
+
+### The closing tactic
+
+`exact` applies the theorem to the hypotheses of the goal by name. If some of them cannot be
+named, such as `n✝` after `cases`, the closing tactic starts with `expose_names`, which gives them
+the names that `exact` uses.
+
+### Reuse
+
+If a theorem extracted earlier for the same declaration states the goal already, the closing tactic
+uses it, and the suggestion only replaces `extract_vc`.
+
+### Goals that cannot be extracted
+
+`extract_vc` fails on a goal that contains metavariables, such as invariants that were not supplied
+to `mvcgen`; on a goal that contains `sorry`; and on a goal that is not a proposition, such as the
+goal `mvcgen` leaves for an invariant. Stateful goals (`P ⊢ₛ Q`) can be extracted but read
+poorly; run `mleave` first.
+
+`extract_vcs` extracts every goal, and can put the theorems into a separate file.
+-/
+syntax (name := extractVC) "extract_vc" : tactic
+
+/--
+`extract_vcs` is `extract_vc` for every goal at once. It suggests a single edit that inserts one
+theorem per goal above the enclosing declaration and replaces `extract_vcs` with one `exact` per
+goal, each on a line of its own. Goals with the same statement share a theorem. If one of the goals
+cannot be extracted, `extract_vcs` fails and extracts none of them.
+
+### Verification conditions in a separate file
+
+`extract_vcs into M` puts the theorems into the file of module `M` instead, so that the verification
+conditions of a proof are stated and proved apart from it:
+```
+-- Example/Program.lean  defines mySum
+-- Example/VCs.lean      holds the extracted theorems, proved there
+-- Example/Correct.lean  imports both:
+theorem mySum_correct (l : List Nat) : mySum l = l.sum := by
+  generalize h : mySum l = r
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, acc⟩ => ⌜acc = xs.prefix.sum⌝
+  extract_vcs into Example.VCs
+```
+Module names map to files as for imports: next to `Example/Correct.lean`, the file of
+`Example.VCs` is `Example/VCs.lean`. Because the edit changes more than the current file, it is a
+code action (`Ctrl+.` in VS Code) rather than a link in the message, which describes it. The code
+action
+
+* creates the file of `M` if needed, with the imports of the current file and with
+  `set_option linter.unusedVariables false`, since the hypotheses of a theorem are the whole
+  context of its goal and proofs rarely use all of them; in a `module`, the theorems and imports
+  are `public`;
+* otherwise appends the theorems to the file of `M`;
+* imports `M` in the current file; and
+* replaces `extract_vcs into M` with the closing tactics, as above.
+
+`extract_vcs into M` can be used again after the program or its specification has changed, in place
+of the closing tactics that no longer work. A goal that some theorem of `M` states already is
+closed with that theorem, whatever its name. A theorem of `M` that has the name of a goal but states
+something else is restated in place, keeping its proof as a starting point. Only the remaining goals
+add theorems to `M`.
+-/
+syntax (name := extractVCs) "extract_vcs" (&" into " ident)? : tactic
+
 deprecated_syntax massumption "the `Std.Do` proof mode is deprecated; use `vcgen` from `Std.WP`" (since := "2026-09-23")
 deprecated_syntax mclear "the `Std.Do` proof mode is deprecated; use `vcgen` from `Std.WP`" (since := "2026-09-23")
 deprecated_syntax mconstructor "the `Std.Do` proof mode is deprecated; use `vcgen` from `Std.WP`" (since := "2026-09-23")

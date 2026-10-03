@@ -1,13 +1,11 @@
 module
 
 /-!
-Clicking a `Try this` suggestion from the command line.
-
-`codeActionApply` applies the same workspace edit as the lightbulb and as the `[apply]` button on
-a tactic or library suggestion. `simp?` is the smallest such suggestion.
+`codeActionApply` applies a code action as selecting it in the editor would. Here it replaces
+`simp?` by its suggestion, after which the `Try this` message is gone.
 -/
 
 example : True := by simp?
+                     --^ collectDiagnostics
                      --^ codeActionApply: simp only
-                     --^ sync
                      --^ collectDiagnostics

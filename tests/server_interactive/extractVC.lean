@@ -1,14 +1,17 @@
 module
 
+import Std.Tactic.Do
+
 /-!
-`extract_vc` code action: the edit inserted above the declaration, and applying that edit.
+The suggestion of `extract_vc` inserts the extracted theorem above the enclosing command, which
+includes its docstring, its attributes and `open … in`. The file elaborates after applying it.
 -/
 
+open Nat in
 /-- doc -/
-@[inline] theorem womp (x : Nat) : x = x := by
+@[simp] theorem womp : ∀ n : Nat, n + 0 = n := by
+  intro
   extract_vc
 --^ codeAction
---^ sync
 --^ codeActionApply: Extract goal as theorem
---^ sync
 --^ collectDiagnostics

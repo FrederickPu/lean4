@@ -429,10 +429,24 @@ partial def expandTraces (msg : Client.MsgEmbed) : RunnerM Client.MsgEmbed := do
   | _ =>
     return msg
 
-def processEdit : RunnerM Unit := do
+/-- Sends `changes` to the server as the next version of the document. -/
+def changeDocument (changes : Array TextDocumentContentChangeEvent) : RunnerM Unit := do
   let s ← get
   if ! s.synced then
     throw <| IO.userError s!"cannot use '{s.method}' without syncing first"
+  let params : DidChangeTextDocumentParams := {
+    textDocument := {
+      uri      := s.uri
+      version? := s.versionNo
+    }
+    contentChanges := changes
+  }
+  Ipc.writeNotification ⟨"textDocument/didChange", toJson params⟩
+  advanceVersionNo
+  setDesynced
+
+def processEdit : RunnerM Unit := do
+  let s ← get
   let (delete, insert) ←
     match s.method with
     | "delete" => pure (s.params, "\"\"")
@@ -447,22 +461,12 @@ def processEdit : RunnerM Unit := do
     | throw <| IO.userError s!"failed to parse {delete}"
   let some insert := Syntax.decodeStrLit insert
     | throw <| IO.userError s!"failed to parse {insert}"
-  let params : DidChangeTextDocumentParams := {
-    textDocument := {
-      uri      := s.uri
-      version? := s.versionNo
-    }
-    contentChanges := #[
-      TextDocumentContentChangeEvent.rangeChange {
-        start := s.pos
-        «end» := { s.pos with character := s.pos.character + delete.length }
-      } insert
-    ]
-  }
-  let params := toJson params
-  Ipc.writeNotification ⟨"textDocument/didChange", params⟩
-  advanceVersionNo
-  setDesynced
+  changeDocument #[
+    .rangeChange {
+      start := s.pos
+      «end» := { s.pos with character := s.pos.character + delete.length }
+    } insert
+  ]
 
 def processCollectDiagnostics : RunnerM Unit := do
   let s ← get
@@ -535,57 +539,30 @@ def processCodeAction : RunnerM Unit := do
     logResponse "codeAction/resolve" x (logParam := false)
 
 /--
-`codeActionApply: <title substring>` applies the workspace edit of a code action at the cursor.
-This is the command-line equivalent of clicking the lightbulb or a suggestion's `[apply]` button
-(`Try this`, library-suggestion tactics, `extract_vc`).
-
-With no argument, the preferred action is used, or the first action. Follow with `sync` and
-`collectDiagnostics` or `goals`. Edits are sent from the end of the file so sequential `didChange`
-application keeps ranges valid.
+`codeActionApply: <title>` applies the first code action at the cursor whose title contains
+`<title>`, as selecting it in the editor would, except that edits of other documents are left out.
+Follow up with `collectDiagnostics` to see the result.
 -/
 def processCodeActionApply : RunnerM Unit := do
   let s ← get
-  if !s.synced then
-    throw <| IO.userError "cannot use 'codeActionApply' without syncing first"
   let params : CodeActionParams := {
     textDocument := { uri := s.uri }
     range := ⟨s.pos, s.pos⟩
   }
   let actions ← request "textDocument/codeAction" params (Array CodeAction)
-  if actions.isEmpty then
-    throw <| IO.userError "codeActionApply: no code actions"
-  let needle := s.params.trimAscii.copy
-  let candidates :=
-    if needle.isEmpty then actions
-    else actions.filter fun a => a.title.replace needle "" != a.title
-  if candidates.isEmpty then
-    throw <| IO.userError s!"codeActionApply: no action title contains {needle}"
-  let some action := candidates.find? (·.isPreferred? == some true) <|> candidates[0]?
-    | throw <| IO.userError "codeActionApply: no code actions"
+  let some action := actions.find? (·.title.contains s.params)
+    | throw <| IO.userError s!"no code action with a title containing '{s.params}'"
+  -- Lazy code actions only compute their edit when resolved.
   let action ←
-    if action.edit?.isSome then pure action
-    else request "codeAction/resolve" action CodeAction
-  let some edit := action.edit?
-    | throw <| IO.userError s!"codeActionApply: {action.title} has no edit"
-  let mut edits : TextEditBatch := #[]
-  if let some changes := edit.documentChanges? then
-    for c in changes do
-      if let .edit te := c then
-        edits := edits ++ te.edits
-  if let some changes := edit.changes? then
-    for (_, es) in changes do
-      edits := edits ++ es
+    if action.edit?.isSome then pure action else request "codeAction/resolve" action CodeAction
+  let edits := (action.edit?.bind (·.documentChanges?)).getD #[] |>.flatMap fun
+    | .edit e => if e.textDocument.uri == s.uri then e.edits else #[]
+    | _ => #[]
   if edits.isEmpty then
-    throw <| IO.userError s!"codeActionApply: {action.title} has an empty edit"
-  -- Later ranges first: `foldDocumentChanges` applies edits sequentially.
-  edits := edits.qsort fun a b => a.range.start > b.range.start
-  let change : DidChangeTextDocumentParams := {
-    textDocument := { uri := s.uri, version? := s.versionNo }
-    contentChanges := edits.map fun e => .rangeChange e.range e.newText
-  }
-  Ipc.writeNotification ⟨"textDocument/didChange", toJson change⟩
-  advanceVersionNo
-  setDesynced
+    throw <| IO.userError s!"code action '{action.title}' does not edit the document"
+  -- All ranges refer to the unedited document, but the server applies changes one after another.
+  let edits := edits.qsort (·.range.start > ·.range.start)
+  changeDocument <| edits.map fun e => .rangeChange e.range e.newText
   IO.eprintln s!"applied code action: {action.title}"
 
 def processInteractiveDiagnostics : RunnerM Unit := do

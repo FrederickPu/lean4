@@ -1,0 +1,36 @@
+{"version": 1,
+ "uri": "file:///applyCodeAction.lean",
+ "isIncremental": false,
+ "diagnostics":
+ [{"source": "Lean 4",
+   "severity": 3,
+   "range":
+   {"start": {"line": 7, "character": 0}, "end": {"line": 7, "character": 26}},
+   "message": "Goals accomplished!",
+   "leanTags": [2],
+   "isSilent": true,
+   "fullRange":
+   {"start": {"line": 7, "character": 0}, "end": {"line": 7, "character": 26}}},
+  {"source": "Lean 4",
+   "severity": 3,
+   "range":
+   {"start": {"line": 7, "character": 21}, "end": {"line": 7, "character": 26}},
+   "message": "Try this:\n  [apply] simp only",
+   "fullRange":
+   {"start": {"line": 7, "character": 21},
+    "end": {"line": 7, "character": 26}}}]}
+applied code action: Try this: simp only
+{"version": 2,
+ "uri": "file:///applyCodeAction.lean",
+ "isIncremental": false,
+ "diagnostics":
+ [{"source": "Lean 4",
+   "severity": 3,
+   "range":
+   {"start": {"line": 7, "character": 0}, "end": {"line": 7, "character": 30}},
+   "message": "Goals accomplished!",
+   "leanTags": [2],
+   "isSilent": true,
+   "fullRange":
+   {"start": {"line": 7, "character": 0},
+    "end": {"line": 7, "character": 30}}}]}

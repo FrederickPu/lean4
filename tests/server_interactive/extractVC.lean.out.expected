@@ -1,0 +1,68 @@
+{"textDocument": {"uri": "file:///extractVC.lean"},
+ "range":
+ {"start": {"line": 13, "character": 2}, "end": {"line": 13, "character": 2}},
+ "context": {"diagnostics": []}}
+[{"title": "Extract goal as theorem womp.goal",
+  "kind": "quickfix",
+  "edit":
+  {"documentChanges":
+   [{"textDocument": {"version": 1, "uri": "file:///extractVC.lean"},
+     "edits":
+     [{"range":
+       {"start": {"line": 9, "character": 0},
+        "end": {"line": 13, "character": 12}},
+       "newText":
+       "theorem womp.goal (n : Nat) : n + 0 = n := by\n  sorry\n\nopen Nat in\n/-- doc -/\n@[simp] theorem womp : ∀ n : Nat, n + 0 = n := by\n  intro\n  expose_names; exact womp.goal n"}]}]},
+  "data":
+  {"providerResultIndex": 0,
+   "providerName":
+   "_private.Lean.Meta.Tactic.TryThis.0.Lean.Meta.Tactic.TryThis.tryThisProvider",
+   "params":
+   {"textDocument": {"uri": "file:///extractVC.lean"},
+    "range":
+    {"start": {"line": 13, "character": 2},
+     "end": {"line": 13, "character": 2}},
+    "context": {"diagnostics": []}}}}]
+Resolution of Extract goal as theorem womp.goal:
+{"title": "Extract goal as theorem womp.goal",
+ "kind": "quickfix",
+ "edit":
+ {"documentChanges":
+  [{"textDocument": {"version": 1, "uri": "file:///extractVC.lean"},
+    "edits":
+    [{"range":
+      {"start": {"line": 9, "character": 0},
+       "end": {"line": 13, "character": 12}},
+      "newText":
+      "theorem womp.goal (n : Nat) : n + 0 = n := by\n  sorry\n\nopen Nat in\n/-- doc -/\n@[simp] theorem womp : ∀ n : Nat, n + 0 = n := by\n  intro\n  expose_names; exact womp.goal n"}]}]},
+ "data":
+ {"providerResultIndex": 0,
+  "providerName":
+  "_private.Lean.Meta.Tactic.TryThis.0.Lean.Meta.Tactic.TryThis.tryThisProvider",
+  "params":
+  {"textDocument": {"uri": "file:///extractVC.lean"},
+   "range":
+   {"start": {"line": 13, "character": 2}, "end": {"line": 13, "character": 2}},
+   "context": {"diagnostics": []}}}}
+applied code action: Extract goal as theorem womp.goal
+{"version": 2,
+ "uri": "file:///extractVC.lean",
+ "isIncremental": false,
+ "diagnostics":
+ [{"source": "Lean 4",
+   "severity": 2,
+   "range":
+   {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 17}},
+   "message": "declaration uses `sorry`",
+   "fullRange":
+   {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 17}}},
+  {"source": "Lean 4",
+   "severity": 3,
+   "range":
+   {"start": {"line": 14, "character": 8}, "end": {"line": 15, "character": 0}},
+   "message": "Goals accomplished!",
+   "leanTags": [2],
+   "isSilent": true,
+   "fullRange":
+   {"start": {"line": 14, "character": 8},
+    "end": {"line": 16, "character": 33}}}]}
