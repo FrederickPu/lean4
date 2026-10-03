@@ -1,0 +1,22 @@
+extractGoalReuse.lean:12:8-12:13: warning: declaration uses `sorry`
+Try this:
+  [apply] exact taken.goal
+extractGoalReuse.lean:19:8-19:13: warning: declaration uses `sorry`
+Try this:
+  [apply] exact clash.goal_1
+and above the declaration:
+  theorem clash.goal_1 : True := by
+    sorry
+extractGoalReuse.lean:26:8-26:14: warning: declaration uses `sorry`
+Try this:
+  [apply] exact chosenName
+extractGoalReuse.lean:31:8-31:13: warning: declaration uses `sorry`
+Try this:
+  [apply] exact twice.left
+          exact twice.left
+and above the declaration:
+  theorem twice.left : True := by
+    sorry
+The code action "Close 1 goal with theorems of Init.Core" replaces `extract_goals` with:
+  exact Nat.add_zero n
+extractGoalReuse.lean:37:8-37:15: warning: declaration uses `sorry`

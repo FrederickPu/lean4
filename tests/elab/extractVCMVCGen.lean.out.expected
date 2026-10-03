@@ -1,7 +1,0 @@
-extractVCMVCGen.lean:20:8-20:21: warning: declaration uses `sorry`
-Try this:
-  [apply] expose_names; exact mySum_correct.vc1.step l r h pref cur suff h_1 b h_2
-and above the declaration:
-  theorem mySum_correct.vc1.step (l : List Nat) (r : Nat) (h : mySum l = r) (pref : List Nat) (cur : Nat) (suff : List Nat)
-    (h_1 : l = pref ++ cur :: suff) (b : Nat) (h_2 : b = pref.sum) : b + cur = (pref ++ [cur]).sum := by
-    sorry

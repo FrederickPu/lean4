@@ -1,0 +1,23 @@
+extractGoalRejected.lean:13:2-13:16: error: goal contains metavariables, so it cannot be stated as a theorem
+
+h : ?n = ?n
+⊢ True
+extractGoalRejected.lean:16:2-16:14: error: goal contains `sorry`, so it cannot be stated as a theorem
+
+⊢ sorry = 0
+extractGoalRejected.lean:21:2-21:17: error: goal contains metavariables, so it cannot be stated as a theorem
+
+case left
+h : ?n = ?n
+⊢ True
+extractGoalRejected.lean:25:2-25:15: error: No goals to be solved
+extractGoalRejected.lean:30:2-30:26: error: `taken` has already been declared and does not state the goal
+extractGoalRejected.lean:37:2-37:31: error: cannot state `extracted.goal` in `Example.VCs`, since its statement uses notation that is local to this file:
+  extracted.goal (n : Nat) : dbl! n = n + n
+extractGoalRejected.lean:50:2-50:15: error: goal contains metavariables, so it cannot be stated as a theorem
+
+case vc1
+l : List Nat
+r : Nat
+h : mySum l = r
+⊢ ?inv1 [] l 0

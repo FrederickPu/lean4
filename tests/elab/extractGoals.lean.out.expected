@@ -1,0 +1,51 @@
+extractGoals.lean:9:8-9:12: warning: declaration uses `sorry`
+Try this:
+  [apply] exact both.left n
+          exact both.right n
+and above the declaration:
+  theorem both.left (n : Nat) : n + 0 = n := by
+    sorry
+  theorem both.right (n : Nat) : 0 + n = n := by
+    sorry
+extractGoals.lean:15:8-15:15: warning: declaration uses `sorry`
+Try this:
+  [apply] exact sameTag.a
+          exact sameTag.a_1
+and above the declaration:
+  theorem sameTag.a : 1 = 1 := by
+    sorry
+  theorem sameTag.a_1 : 2 = 2 := by
+    sorry
+extractGoals.lean:21:8-21:16: warning: declaration uses `sorry`
+Try this:
+  [apply] exact relevant.left n
+          exact relevant.right m h
+and above the declaration:
+  theorem relevant.left (n : Nat) : n + 0 = n := by
+    sorry
+  theorem relevant.right (m : Nat) (h : m = 0) : m = 0 := by
+    sorry
+extractGoals.lean:25:8-25:11: warning: declaration uses `sorry`
+Try this:
+  [apply] exact all.left n m h
+          exact all.right n m h
+and above the declaration:
+  theorem all.left (n m : Nat) (h : m = 0) : n + 0 = n := by
+    sorry
+  theorem all.right (n m : Nat) (h : m = 0) : m = 0 := by
+    sorry
+The code action "Extract 2 goals into Example.VCs" adds to Example.VCs:
+  theorem intoFile.left (n : Nat) : n + 0 = n := by
+    sorry
+  theorem intoFile.right (n : Nat) : 0 + n = n := by
+    sorry
+and replaces `extract_goals` with:
+  exact intoFile.left n
+  exact intoFile.right n
+extractGoals.lean:31:8-31:16: warning: declaration uses `sorry`
+The code action "Extract 1 goal into Example.VCs" adds to Example.VCs:
+  theorem addZero (n m : Nat) (h : m = 0) : n + 0 = n := by
+    sorry
+and replaces `extract_goal` with:
+  exact addZero n m h
+extractGoals.lean:35:8-35:19: warning: declaration uses `sorry`

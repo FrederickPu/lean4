@@ -1,0 +1,122 @@
+extractGoal.lean:13:8-13:12: warning: declaration uses `sorry`
+Try this:
+  [apply] exact womp.goal
+and above the declaration:
+  theorem womp.goal : True := by
+    sorry
+extractGoal.lean:16:0-16:7: warning: declaration uses `sorry`
+Try this:
+  [apply] exact extracted.goal
+and above the declaration:
+  theorem extracted.goal : True := by
+    sorry
+extractGoal.lean:19:16-19:22: warning: declaration uses `sorry`
+Try this:
+  [apply] exact hidden.goal
+and above the declaration:
+  theorem hidden.goal : True := by
+    sorry
+extractGoal.lean:24:8-24:11: warning: declaration uses `sorry`
+Try this:
+  [apply] exact bar.goal
+and above the declaration:
+  theorem bar.goal : True := by
+    sorry
+extractGoal.lean:27:8-27:13: warning: declaration uses `sorry`
+Try this:
+  [apply] exact baz
+and above the declaration:
+  theorem baz : True := by
+    sorry
+extractGoal.lean:34:8-34:12: warning: declaration uses `sorry`
+Try this:
+  [apply] exact poly.goal α x
+and above the declaration:
+  theorem poly.goal.{u} (α : Type u) (x : α) : x = x := by
+    sorry
+extractGoal.lean:37:8-37:13: warning: declaration uses `sorry`
+Try this:
+  [apply] exact insts.goal α inst xs
+and above the declaration:
+  theorem insts.goal (α : Type) (inst : Inhabited α) (xs : List α) : xs.headD Inhabited.default ∈ xs ∨ xs = [] := by
+    sorry
+extractGoal.lean:40:0-40:7: warning: declaration uses `sorry`
+Try this:
+  [apply] exact extracted.goal α x
+and above the declaration:
+  theorem extracted.goal.{u_1} (α : Type u_1) (x : α) : x = x := by
+    sorry
+extractGoal.lean:49:8-49:16: warning: declaration uses `sorry`
+Try this:
+  [apply] exact relevant.goal n hn
+and above the declaration:
+  theorem relevant.goal (n : Nat) (hn : n = 1) : n = 1 := by
+    sorry
+extractGoal.lean:52:8-52:21: warning: declaration uses `sorry`
+Try this:
+  [apply] exact contradiction.goal n m h
+and above the declaration:
+  theorem contradiction.goal (n m : Nat) (h : n < 0) : False := by
+    sorry
+extractGoal.lean:55:8-55:11: warning: declaration uses `sorry`
+Try this:
+  [apply] exact all.goal n m hn hm
+and above the declaration:
+  theorem all.goal (n m : Nat) (hn : n = 1) (hm : m = 2) : n = 1 := by
+    sorry
+extractGoal.lean:58:8-58:14: warning: declaration uses `sorry`
+Try this:
+  [apply] exact chosen.goal n m hm
+and above the declaration:
+  theorem chosen.goal (n m : Nat) (hm : m = 2) : n = n := by
+    sorry
+extractGoal.lean:63:8-63:12: warning: declaration uses `sorry`
+Try this:
+  [apply] exact lets.goal n fact
+and above the declaration:
+  theorem lets.goal (n : Nat) :
+    let m : Nat := n + 1;
+    n = n → m = n + 1 := by
+    sorry
+extractGoal.lean:72:8-72:14: warning: declaration uses `sorry`
+Try this:
+  [apply] exact opened.goal
+and above the declaration:
+  theorem opened.goal : Nat.zero.succ = 1 := by
+    sorry
+extractGoal.lean:77:8-77:16: warning: declaration uses `sorry`
+Try this:
+  [apply] exact splitNat.zero
+and above the declaration:
+  theorem splitNat.zero : 0 = 0 := by
+    sorry
+Try this:
+  [apply] expose_names; exact splitNat.succ n
+and above the declaration:
+  theorem splitNat.succ (n : Nat) : n + 1 = n + 1 := by
+    sorry
+extractGoal.lean:80:8-80:16: warning: declaration uses `sorry`
+Try this:
+  [apply] expose_names; exact shadowed.goal x_1 x
+and above the declaration:
+  theorem shadowed.goal (x_1 : Nat) (x : x_1 = 1) : True := by
+    sorry
+extractGoal.lean:85:4-85:8: warning: declaration uses `sorry`
+Try this:
+  [apply] exact data.goal n
+and above the declaration:
+  def data.goal (n : Nat) : Fin (n + 1) :=
+    sorry
+extractGoal.lean:99:8-99:18: warning: declaration uses `sorry`
+Try this:
+  [apply] exact usesScoped.goal n
+and above the declaration:
+  open scoped Scoped in
+  theorem usesScoped.goal (n : Nat) : ⟪n⟫ = n + n := by
+    sorry
+extractGoal.lean:107:8-107:17: warning: declaration uses `sorry`
+Try this:
+  [apply] exact usesLocal.goal n
+and above the declaration:
+  theorem usesLocal.goal (n : Nat) : dbl! n = n + n := by
+    sorry

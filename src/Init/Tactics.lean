@@ -1907,6 +1907,123 @@ as well as tactics such as `next`, `case`, and `rename_i`.
 syntax (name := exposeNames) "expose_names" : tactic
 
 /--
+The hypotheses that `extract_goal` keeps: `*` for all of them, or hypotheses to keep beyond those
+that the goal depends on.
+-/
+syntax extractGoalHyps := " *" <|> (ppSpace colGt notFollowedBy(&"into") ident)*
+
+/--
+`extract_goal` states the main goal as a theorem of its own and suggests replacing `extract_goal`
+with a proof of the goal by that theorem. This way a goal can be worked on in isolation, handed to
+another tool, or proved apart from the proof it comes from, as is common for the verification
+conditions that `vcgen` produces.
+
+The suggestion is a "Try this" link in the message, which is also offered as a code action. It
+appears once the enclosing declaration has been elaborated. Applying it inserts the theorem, proved
+by `sorry`, above the enclosing declaration, and replaces `extract_goal` with `exact`:
+```
+theorem womp.goal (n : Nat) : n + 0 = n := by
+  sorry
+
+theorem womp : ∀ n : Nat, n + 0 = n := by
+  intro
+  expose_names; exact womp.goal n
+```
+Until then, `extract_goal` admits the goal.
+
+* `extract_goal` keeps only the hypotheses that are relevant to the goal: those that the goal
+  mentions, those that relevant hypotheses depend on, and propositions about relevant hypotheses.
+  If the goal is `False`, it keeps all of them.
+* `extract_goal *` keeps all hypotheses.
+* `extract_goal h₁ h₂` keeps `h₁`, `h₂`, and the hypotheses that they or the goal depend on.
+* `extract_goal using name` names the theorem `name`.
+* `extract_goal into M` puts the theorem into the file of module `M`, as `extract_goals into M`
+  does.
+
+### The theorem
+
+* Its name is `<declaration>.<case tag>`, such as `mySum_correct.vc2`, or `<declaration>.goal` for
+  a goal without a case tag. Inside an `example`, `extracted` stands in for the declaration's name.
+  A numeric suffix avoids names that are taken.
+* Each hypothesis that it keeps becomes an explicit argument, written before the colon where that
+  prints faithfully. A `let` that the goal depends on stays part of the statement instead.
+* Universe parameters of the goal, including universe metavariables, become universe parameters of
+  the theorem.
+* Names are written in full, because the theorem is stated outside of the `open` declarations of
+  the proof. Where its statement relies on scoped notation or scoped instances of a namespace that
+  is not open there, the theorem starts with `open scoped … in`.
+* The statement is checked to elaborate back to the goal, unfolding only reducible definitions, so
+  that it states what the goal shows rather than something merely equivalent to it. If no printed
+  form passes this check, `extract_goal` fails rather than suggest a different statement.
+* If the goal is not a proposition, it becomes a definition instead of a theorem.
+
+### The closing tactic
+
+`exact` applies the theorem to the hypotheses that it keeps, by name. If some of them cannot be
+named, such as `n✝` after `intro`, the closing tactic starts with `expose_names`, which gives them
+the names that `exact` uses.
+
+### Reuse
+
+If a theorem extracted earlier for the same declaration, or the theorem named with `using`, states
+the goal already, the closing tactic uses it, and the suggestion only replaces `extract_goal`. If
+the theorem named with `using` exists but states something else, `extract_goal` fails.
+
+### Goals that cannot be extracted
+
+`extract_goal` fails on a goal that contains metavariables, such as invariants that were not
+supplied to `vcgen`, and on a goal that contains `sorry`.
+-/
+syntax (name := extractGoal)
+  "extract_goal" extractGoalHyps (" using " ident)? (&" into " ident)? : tactic
+
+/--
+`extract_goals` is `extract_goal` for every goal at once. It suggests a single edit that inserts
+one theorem per goal above the enclosing declaration and replaces `extract_goals` with one `exact`
+per goal, each on a line of its own. Goals with the same statement share a theorem. If one of the
+goals cannot be extracted, `extract_goals` fails and extracts none of them. Each theorem keeps the
+hypotheses that are relevant to its goal, or all of them with `extract_goals *`.
+
+### Theorems in a separate file
+
+`extract_goals into M` puts the theorems into the file of module `M` instead, so that the
+conditions that a proof leaves are stated and proved apart from it. After `vcgen`, this separates
+the verification conditions of a program from its proof of correctness:
+```
+-- Example/Program.lean  defines mySum
+-- Example/VCs.lean      holds the extracted theorems, proved there
+-- Example/Correct.lean  imports both:
+theorem mySum_correct (l : List Nat) : mySum l = l.sum := by
+  generalize h : mySum l = r
+  apply Id.of_run_eq_wp h
+  vcgen [mySum] invariants
+  · fun _pref suff acc => ⌜acc + suff.sum = l.sum⌝
+  extract_goals into Example.VCs
+```
+Module names map to files as for imports: next to `Example/Correct.lean`, the file of
+`Example.VCs` is `Example/VCs.lean`. Because the edit changes more than the current file, it is a
+code action (`Ctrl+.` in VS Code) rather than a link in the message, which describes it. The code
+action
+
+* creates the file of `M` if needed, with the imports of the current file and with
+  `set_option linter.unusedVariables false`, since proofs of such conditions rarely use all of
+  their hypotheses; in a `module`, the theorems and imports are `public`;
+* otherwise appends the theorems to the file of `M`;
+* imports `M` in the current file; and
+* replaces `extract_goals into M` with the closing tactics, as above.
+
+`extract_goals into M` can be used again after the program or its specification has changed, in
+place of the closing tactics that no longer work. A goal that some theorem of `M` states already is
+closed with that theorem, whatever its name. A theorem of `M` that has the name of a goal but
+states something else is restated in place, keeping its proof as a starting point. Only the
+remaining goals add theorems to `M`.
+
+A statement that uses notation that is local to the current file, such as a `local notation`, cannot
+be put into `M`, and `extract_goals into M` fails on such a goal.
+-/
+syntax (name := extractGoals) "extract_goals" (" *")? (&" into " ident)? : tactic
+
+/--
 `#suggestions` will suggest relevant theorems from the library for the current goal,
 using the currently registered library suggestion engine.
 

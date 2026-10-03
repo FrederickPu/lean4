@@ -1,0 +1,5 @@
+{"textDocument": {"uri": "file:///extractGoalIntoLocal.lean"},
+ "range":
+ {"start": {"line": 10, "character": 2}, "end": {"line": 10, "character": 2}},
+ "context": {"diagnostics": []}}
+[]

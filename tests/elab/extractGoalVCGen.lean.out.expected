@@ -1,0 +1,31 @@
+extractGoalVCGen.lean:17:8-17:21: warning: declaration uses `sorry`
+Try this:
+  [apply] exact mySum_correct.vc1 l r h
+          expose_names; exact mySum_correct.vc2 l r h a h_1
+          expose_names; exact mySum_correct.vc3 l r h pref cur suff _h b h_1
+and above the declaration:
+  theorem mySum_correct.vc1 (l : List Nat) (r : Nat) (h : mySum l = r) : 0 + l.sum = l.sum := by
+    sorry
+  theorem mySum_correct.vc2 (l : List Nat) (r : Nat) (h : mySum l = r) (a : Nat) (h_1 : a + [].sum = l.sum) : a = l.sum := by
+    sorry
+  theorem mySum_correct.vc3 (l : List Nat) (r : Nat) (h : mySum l = r) (pref : List Nat) (cur : Nat) (suff : List Nat)
+    (_h : l = pref ++ cur :: suff) (b : Nat) (h_1 : b + (cur :: suff).sum = l.sum) :
+    let acc : Nat := b + cur;
+    ⌜acc + suff.sum = l.sum⌝ := by
+    sorry
+The code action "Extract 3 goals into Example.VCs" adds to Example.VCs:
+  theorem mySum_correct_into.vc1 (l : List Nat) (r : Nat) (h : mySum l = r) : 0 + l.sum = l.sum := by
+    sorry
+  theorem mySum_correct_into.vc2 (l : List Nat) (r : Nat) (h : mySum l = r) (a : Nat) (h_1 : a + [].sum = l.sum) : a = l.sum := by
+    sorry
+  open scoped Lean.Order Std.WP in
+  theorem mySum_correct_into.vc3 (l : List Nat) (r : Nat) (h : mySum l = r) (pref : List Nat) (cur : Nat) (suff : List Nat)
+    (_h : l = pref ++ cur :: suff) (b : Nat) (h_1 : b + (cur :: suff).sum = l.sum) :
+    let acc : Nat := b + cur;
+    ⌜acc + suff.sum = l.sum⌝ := by
+    sorry
+and replaces `extract_goals` with:
+  exact mySum_correct_into.vc1 l r h
+  expose_names; exact mySum_correct_into.vc2 l r h a h_1
+  expose_names; exact mySum_correct_into.vc3 l r h pref cur suff _h b h_1
+extractGoalVCGen.lean:57:8-57:26: warning: declaration uses `sorry`

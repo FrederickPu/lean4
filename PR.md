@@ -1,38 +1,42 @@
-feat: add `extract_vc` and `extract_vcs` tactics
+feat: add `extract_goal` and `extract_goals` tactics
 
-This PR adds the tactics `extract_vc` and `extract_vcs`, which state the main goal, or every goal, as a theorem of its own and suggest replacing the tactic with a proof of the goal by that theorem. They are meant for the verification conditions that `mvcgen` leaves behind: `extract_vcs into M` keeps those conditions in a separate module, where they are stated and proved apart from the correctness proof, while the correctness proof itself ends up with nothing but `exact` lines.
+This PR adds the tactics `extract_goal` and `extract_goals`, which turn the main goal, or every goal, into a theorem of its own with one click: the click edits the file, inserting the theorem and replacing the tactic with a proof of the goal by that theorem. With `into M`, the click writes the theorems into the file of module `M` instead, which separates the verification conditions that `vcgen` produces from the program proof.
 
-After `mvcgen`, a correctness proof is typically left with several verification conditions, each with a large context of hypotheses about the program's state. Proving them inline interleaves the structure of the program proof with arithmetic and list reasoning, and makes the proof hard to read and to maintain. Program verifiers such as Verus, Why3 and Frama-C WP discharge proof obligations apart from the code they come from, and Why3 keeps user proofs across changes to the code by matching them to the regenerated obligations. These tactics give `mvcgen` users the same workflow, using only ordinary Lean declarations: each condition becomes a standalone theorem with a readable statement that a person or an automated prover can work on in isolation, and when the program changes, only the conditions that changed need attention.
+Mathlib's `extract_goal` prints the goal as a theorem and leaves the rest to the user: copy the text, paste it somewhere, hope that it elaborates, and rewrite the proof to use it. Here the click does all of that. It turns
 
-For example, `extract_vc` on the goal `n✝ : Nat ⊢ n✝ + 0 = n✝` in the proof of `womp` suggests inserting `theorem womp.goal (n : Nat) : n + 0 = n := by sorry` above the declaration and replacing `extract_vc` with `expose_names; exact womp.goal n`. The suggestion is a "Try this" link in the message and a code action; until it is applied, the goal is admitted.
+```lean
+theorem womp : ∀ n : Nat, n + 0 = n := by
+  intro
+  extract_goal
+```
 
-The extracted theorem:
+into
 
-* is named `<declaration>.<case tag>`, such as `mySum_correct.vc1.step`, or `<declaration>.goal` for an untagged goal, with `extracted` in place of the declaration's name inside an `example`, and a numeric suffix if the name is taken;
-* takes each hypothesis of the goal as an explicit argument before the colon, while a `let` that the goal depends on stays part of the statement;
-* turns universe parameters and universe metavariables of the goal into its own universe parameters;
-* writes names in full, since it is stated outside of the proof's `open` declarations;
-* has a statement that is checked to elaborate back to the goal, up to reducible unfolding, before anything is suggested. Printing tries `pp.analyze`, then `pp.explicit`, each first with binders before the colon and then as a single `∀`; if no printed form passes the check, the tactic fails instead of suggesting a different statement.
+```lean
+theorem womp.goal (n : Nat) : n + 0 = n := by
+  sorry
 
-The closing tactic applies the theorem to the goal's hypotheses by name, preceded by `expose_names` when some of them are inaccessible, so that it names them the same way. The final proof thus contains only `mvcgen`, `expose_names` and `exact`: neither tactic remains in it.
+theorem womp : ∀ n : Nat, n + 0 = n := by
+  intro
+  expose_names; exact womp.goal n
+```
 
-`extract_vcs` does the same for every goal in one suggestion, with one `exact` per goal on its own line. Goals with the same statement share a theorem, goals with the same case tag get distinct names, and if one goal cannot be extracted, none is. Both tactics reject goals that contain metavariables (such as invariants not supplied to `mvcgen`), goals that contain `sorry`, and goals that are not propositions (such as the goals `mvcgen` leaves for invariants), and show the offending goal.
+The statement is checked to elaborate back to the goal before the edit is offered, so the inserted theorem states exactly the goal. The forms of Mathlib's tactic (`*`, hypothesis names, `using name`) are kept.
 
-`extract_vcs into M` puts the theorems into the file of module `M` instead, for a layout of three modules: the program, its verification conditions, and the correctness proof, which imports both. The edit is offered as a code action, because it changes more than one file. It creates the file of `M` if needed, with the current file's imports and `set_option linter.unusedVariables false` (the hypotheses of a verification condition are its whole context, and proofs rarely use all of them), and otherwise appends to it; it adds `import M` to the current file; and it replaces the tactic with the closing tactics. In a `module`, the new theorems and imports are `public`.
+This matters now that core has `vcgen`. `vcgen` reduces the correctness proof of a program to verification conditions: several goals, each with a long context about the program's state, and each usually a fact about numbers or lists rather than about the program. Proving them inline buries the program proof under that reasoning, and every change to the program produces them anew. Verifiers such as Verus, Why3 and Frama-C keep such obligations apart from the code for this reason. `extract_goals into M` gives `vcgen` that workflow with ordinary Lean declarations. One click moves all conditions into a module of their own, each as a standalone theorem that a person or an automated prover can work on, and leaves the correctness proof as `vcgen` followed by one `exact` per condition:
 
-`extract_vcs into M` is meant to be used again after the program or its specification changes, in place of the closing tactics that broke. A goal that a theorem of `M` already states is closed with that theorem, whatever its name, so proved conditions are reused even when `mvcgen` numbers them differently. A theorem of `M` that has the name of a goal but now states something else is restated in place, keeping its proof as the starting point, much as Why3 keeps proofs of changed goals and marks them obsolete. Only goals left over after that add new theorems to `M`. Without `into`, a theorem extracted earlier for the same declaration is reused in the same way.
+```lean
+  vcgen [mySum] invariants
+  · fun _pref suff acc => ⌜acc + suff.sum = l.sum⌝
+  exact mySum_correct.vc1 l r h
+  expose_names; exact mySum_correct.vc2 l r h a h_1
+  expose_names; exact mySum_correct.vc3 l r h pref cur suff _h b h_1
+```
 
-Implementation notes:
+After the program changes, running `extract_goals into M` again reuses the theorems that still state a goal, restates in place those that changed while keeping their proofs, and adds only what is new, so that only the conditions that changed need attention.
 
-* `Lean.Elab.Tactic.Do.ExtractVC.Basic` turns a goal into an `Extraction` (name, universe parameters, statement as an `Expr`, its checked source text, arguments, whether `expose_names` is needed, whether it restates an existing theorem) and renders it as source text. It knows nothing about where the text goes, so that other front ends, such as one that writes verification conditions into files from the command line, can build on it. `Lean.Elab.Tactic.Do.ExtractVC` holds the tactics and the editor integration. The syntax is in `Std.Tactic.Do.Syntax` next to `mvcgen`, and the elaborator next to `mvcgen`'s; the extraction itself does not depend on `mvcgen` and works after `vcgen` as well.
-* A tactic cannot learn where its enclosing command starts: declaration ranges are only registered after the body is elaborated, and the macro stack only reveals `… in` wrappers. So the tactics record their extractions in the info tree, and a function registered with `addLinter`, which runs once the command is elaborated and receives the whole command, turns them into a single `TryThis.addSuggestion` edit from the start of the command (above its docstring, attributes and `open … in`) to the end of the tactic.
-* An infoview link can only edit a single file, and in VS Code only one that is open, so `into M` uses a code action whose `WorkspaceEdit` creates and edits `M`'s file and edits the current one. The file of `M` is derived from the current file's URI and module name. Restating a theorem replaces the range from its name to the end of its signature, found from its declaration range by re-parsing that declaration.
-* The round-trip check parses the printed text inside a `theorem` command and elaborates that signature in an empty local context, with info trees disabled, since its positions refer to the printed text rather than to the file. Binders before the colon come from `PrettyPrinter.ppSignature` on a temporary axiom; because that printer annotates binder types less than `ppExpr` annotates a whole statement, the single-`∀` form remains as a fallback.
-* `into` is a non-reserved keyword, so that it stays usable as an identifier in files that import `Std.Tactic.Do`.
-* The server test runner gains a `codeActionApply: <title>` directive, which applies the edits of a code action to the open document, as selecting it in the editor would; `processEdit` and it share a helper that sends a document change.
+The edit in the current file comes from a linter hook, because a tactic cannot see where its enclosing command starts, and `into M` is a code action, because it edits two files. The server test runner gains a `codeActionApply` directive to test such edits.
 
-Tests: each `tests/elab/extractVC*.lean` file is plain input that can be opened in the editor as is, with Lean's output next to it in `.lean.out.expected`. `extractVC.lean` covers naming, arguments, universes, `let`s, `open … in` and inaccessible hypotheses; `extractVCApplied.lean` checks that the suggested text, applied, closes the goals; `extractVCReuse.lean` covers reuse; `extractVCs.lean` covers several goals and the message for `into`; `extractVCMVCGen.lean` extracts a verification condition from `mvcgen` and applies the suggestion; `tests/elab_fail/extractVCRejected.lean` covers the rejected goals. The server tests `extractVC`, `extractVCs` and `extractVCsInto` check the edits and that the files elaborate after applying them, and `applyCodeAction` checks the new runner directive on a `simp?` suggestion.
-
-Limitations: without `into`, a changed condition gets a theorem with a fresh name rather than being restated; theorems of `M` that no proof uses any more are not reported; under `#guard_msgs in`, the theorem is inserted after the `#guard_msgs` line; and since the edit without `into` reaches from the start of the command to the tactic, applying a suggestion that predates later edits in that range undoes those edits.
+Unlike Mathlib's tactic, this one admits the goal. Mathlib's `extract_goal` should be removed when Mathlib adopts this, since both parse the same input.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
